@@ -1,0 +1,8 @@
+# Build output. Not committed on purpose:
+#   * GitHub Pages serves every file in this repo, so a committed dist/ would
+#     publish a second live copy of each app at IMCT_HUB/dist/<app>/ pointing
+#     at the real backend — confusing, and a URL nobody intended to support.
+#   * It is fully reproducible: `node tools/build.js` regenerates it from the
+#     source and config in this repo, so the git history of source/ already
+#     tells you what any given deployment was built from.
+dist/
