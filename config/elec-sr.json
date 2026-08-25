@@ -1,0 +1,38 @@
+{
+  "APP_ID": "elec-sr",
+  "APP_NS": "elecsr",
+  "APP_VERSION": "1.0.0",
+  "SITE_NAME": "Electric Meter",
+  "SITE_CODE": "SR",
+  "UNIT": "kWh",
+  "UNIT_WORD": "ใช้ไฟฟ้า",
+  "UNIT_ICON": "⚡",
+  "QR_SAMPLE": "SUB-XX",
+  "API_URL": "https://script.google.com/macros/s/AKfycbyH9UH3Cva7VMm9Tx-p3hdonQqkPHv41SNzEt3HB8iSXs1CBgkzhi-L6iEVu6Z-9C53RA/exec",
+  "QR_BASE_URL": "https://imctconsumption.github.io/Electric-Meter-SR/",
+  "TAB_ORDER": [
+    "entry",
+    "data",
+    "chart",
+    "summary",
+    "cost",
+    "qr",
+    "settings"
+  ],
+  "modules": [
+    "export-exceljs",
+    "summary-electric",
+    "cost"
+  ],
+  "shell": "electric",
+  "backend": {
+    "seed": "elec",
+    "modules": [
+      "tariffs",
+      "migration-elec"
+    ],
+    "UNIT_BACKEND": "kWh",
+    "ADMIN_SEED_PW": "CHANGE_ME_IN_APPS_SCRIPT",
+    "RECORDER_SEED_PW": "CHANGE_ME_IN_APPS_SCRIPT"
+  }
+}

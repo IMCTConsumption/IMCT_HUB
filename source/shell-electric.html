@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>⚡ ระบบจดบันทึกมิเตอร์ไฟฟ้า Electric Meter SR Plant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>{{STYLE}}</style>
+</head>
+<body>
+<div id="login-gate" style="position:fixed;top:0;left:0;width:100%;height:100%;background:var(--rd-surface);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto;">
+
+  <div class="rd-login-shell">
+
+    <a href="https://imctconsumption.github.io/IMCT_HUB/" class="rd-login-brand" title="Back to hub">
+      <div class="rd-login-brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/>
+        </svg>
+      </div>
+      <div class="rd-login-brand-txt">IMCT Consumption</div>
+    </a>
+
+    <div class="rd-login-card">
+      <div class="rd-login-eyebrow" id="rd-login-mode-tag">Recorder access</div>
+      <div class="rd-login-title" id="rd-login-title">Sign in to log readings</div>
+      <div class="rd-login-subtitle" id="rd-login-subtitle">กรอกรหัสผ่านทีมจดมิเตอร์เพื่อเริ่มบันทึกค่า</div>
+
+      <!-- The original 2-button "choose" screen is superseded by the toggle
+           links below, but its ID must stay in the DOM: showRecorderLogin(),
+           showAdminLogin() and backToChoose() all reference #login-choose
+           directly (they just don't run any code that requires it to be
+           visible — they only ever set its style.display). -->
+      <div id="login-choose" style="display:none"></div>
+
+      <!-- RECORDER form — default visible. Every element ID below matches the
+           ORIGINAL app.js exactly (#recorder-pass / #recorder-login-err /
+           #recorder-login-btn) so handleRecorderLogin() needs no changes. -->
+      <div class="rd-login-body" id="login-recorder">
+        <div class="rd-field">
+          <label class="rd-field-label" for="recorder-pass">Passcode / รหัสผ่านทีม</label>
+          <input class="rd-field-input" type="password" id="recorder-pass" placeholder="กรอกรหัสผ่าน" autocomplete="current-password">
+        </div>
+        <div class="rd-login-err" id="recorder-login-err"></div>
+        <button class="rd-btn-primary" id="recorder-login-btn" onclick="handleRecorderLogin()">
+          Continue
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+        <div class="rd-login-toggle">
+          <span class="rd-login-toggle-txt">แอดมิน / IT?</span>
+          <button class="rd-login-toggle-link" onclick="rdShowAdmin()">Admin access</button>
+        </div>
+      </div>
+
+      <!-- ADMIN form — hidden by default. IDs match original exactly
+           (#login-user / #login-pass / #login-err / #login-btn) so
+           handleLogin() needs no changes either. -->
+      <div class="rd-login-body" id="login-admin" style="display:none">
+        <div class="rd-field">
+          <label class="rd-field-label" for="login-user">Username</label>
+          <input class="rd-field-input" type="text" id="login-user" placeholder="admin" autocomplete="username">
+        </div>
+        <div class="rd-field">
+          <label class="rd-field-label" for="login-pass">Password</label>
+          <input class="rd-field-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="rd-login-err" id="login-err"></div>
+        <button class="rd-btn-primary" id="login-btn" onclick="handleLogin()">
+          Sign in as admin
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+        <div class="rd-login-toggle">
+          <span class="rd-login-toggle-txt">Not an admin?</span>
+          <button class="rd-login-toggle-link" onclick="rdShowRecorder()">Back to recorder</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rd-login-foot">
+      Need help? <a href="mailto:IMCT_441_FC@isuzu.com">IMCT_441_FC@isuzu.com</a> · Ext. 2486, 2433
+    </div>
+  </div>
+</div>
+
+
+<!-- Session-expired banner. NOTE: this element was accidentally removed during
+     the header/login redesign, which made show/hideSessionExpiredBanner() throw
+     on a null reference. Because logout() calls hide...() on its FIRST line,
+     the throw aborted logout before it cleared the stored token — the user
+     appeared to stay logged in after signing out. Guarded below as well. -->
+<div id="session-expired-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:#3a2416;border-bottom:1px solid #92400e;color:#fbbf24;padding:9px 14px;font-size:13px;font-weight:600;text-align:center;">
+  ⚠️ เซสชันหมดอายุแล้ว — <button onclick="rdShowRecorder(); document.getElementById('login-gate').style.display='flex';" style="background:#fbbf24;color:#1a1206;border:none;border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer;font-size:12px;margin-left:4px;">เข้าสู่ระบบใหม่</button>
+</div>
+
+<!-- ── NEW HEADER + SIDEBAR DRAWER ── -->
+<header class="rd-header">
+  <div class="rd-hdr-left">
+    <button class="rd-menu-btn" id="rd-menu-btn" onclick="rdOpenDrawer()" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <div class="rd-brand">
+      <div class="rd-brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/>
+        </svg>
+      </div>
+      <div class="rd-brand-title" id="hdr-title">Electric Meter<span class="rd-brand-code" id="rd-brand-code">SR</span></div>
+    </div>
+  </div>
+
+
+  <div class="rd-hdr-right">
+    <button class="rd-icon-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <div class="rd-status-dot" id="sync-dot" title="Sync status"></div>
+    <span id="hdr-small" style="display:none"></span>
+  </div>
+</header>
+
+<!-- Sidebar drawer -->
+<div class="rd-drawer-overlay" id="rd-drawer-overlay" onclick="rdCloseDrawer()"></div>
+<aside class="rd-drawer" id="rd-drawer" aria-label="Main navigation">
+  <div class="rd-drawer-head">
+    <div class="rd-drawer-title">Menu</div>
+    <button class="rd-drawer-close" onclick="rdCloseDrawer()" aria-label="Close menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="rd-drawer-user" id="rd-drawer-user" style="display:none">
+    <div class="rd-drawer-avatar" id="rd-drawer-avatar">U</div>
+    <div class="rd-drawer-usermeta">
+      <div class="rd-drawer-username" id="rd-drawer-username">—</div>
+      <div class="rd-drawer-role" id="rd-drawer-role">—</div>
+    </div>
+  </div>
+
+  <nav class="rd-drawer-nav">
+    <div class="rd-drawer-section">General</div>
+    <a class="rd-drawer-item" href="https://imctconsumption.github.io/IMCT_HUB/" title="Back to hub">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+      Home
+    </a>
+
+    <div class="rd-drawer-section">Workspace</div>
+    <button class="rd-drawer-item active" data-rd-tab="entry" onclick="rdGoTab('entry')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      Entry <span style="margin-left:auto;font-family:var(--rd-font-th);font-size:11px;color:var(--rd-ink-3)">บันทึก</span>
+    </button>
+    <button class="rd-drawer-item rd-admin-item" data-rd-tab="data" onclick="rdGoTab('data')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+      Data <span style="margin-left:auto;font-family:var(--rd-font-th);font-size:11px;color:var(--rd-ink-3)">ข้อมูล</span>
+    </button>
+    <button class="rd-drawer-item rd-admin-item" data-rd-tab="chart" onclick="rdGoTab('chart')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 4-6"/></svg>
+      Charts <span style="margin-left:auto;font-family:var(--rd-font-th);font-size:11px;color:var(--rd-ink-3)">กราฟ</span>
+    </button>
+    <button class="rd-drawer-item rd-admin-item" data-rd-tab="summary" onclick="rdGoTab('summary')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>
+      Summary <span style="margin-left:auto;font-family:var(--rd-font-th);font-size:11px;color:var(--rd-ink-3)">สรุป</span>
+    </button>
+    <button class="rd-drawer-item rd-admin-item" data-rd-tab="cost" onclick="rdGoTab('cost')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Cost <span style="margin-left:auto;font-family:var(--rd-font-th);font-size:11px;color:var(--rd-ink-3)">ค่าไฟ</span>
+    </button>
+    <button class="rd-drawer-item rd-admin-item" data-rd-tab="qr" onclick="rdGoTab('qr')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>
+      QR Codes
+    </button>
+    <button class="rd-drawer-item rd-admin-item" data-rd-tab="settings" onclick="rdGoTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      Settings <span style="margin-left:auto;font-family:var(--rd-font-th);font-size:11px;color:var(--rd-ink-3)">ตั้งค่า</span>
+    </button>
+  </nav>
+
+  <div class="rd-drawer-foot">
+    <button class="rd-drawer-item" id="rd-logout-item" onclick="logout()" style="color:var(--rd-danger);display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+      Sign out
+    </button>
+  </div>
+</aside>
+
+<div class="sync-banner" id="sync-banner">
+  <span id="sync-icon">⏳</span>
+  <span id="sync-msg">กำลังโหลด...</span>
+</div>
+
+<div class="tabs basic-mode" id="tabs-bar">
+  <div class="tab active" onclick="goTab('entry')">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></i>บันทึก
+  </div>
+  <div class="tab" onclick="goTab('data')">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></i>ข้อมูล
+  </div>
+  <div class="tab admin-tab" onclick="goTab('chart')">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 4-6"/></svg></i>กราฟ
+  </div>
+  <div class="tab admin-tab" onclick="goTab('summary')" title="รายละเอียดรายมิเตอร์แยกตาม Zone">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg></i>สรุป
+  </div>
+  <div class="tab admin-tab" onclick="goTab('qr')">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg></i>QR
+  </div>
+  <div class="tab admin-tab" onclick="goTab('settings')">
+    <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></i>ตั้งค่า
+  </div>
+</div>
+
+<div class="body">
+  <div class="panel active" id="panel-entry">
+    <div id="sub-list-screen">
+      <div class="card">
+        <div class="card-title">📍 เลือก Meter</div>
+        <div class="rec-badge" id="entry-record-badge">0 rec</div>
+        <!-- Search lives here, not in the global header: it only ever filters
+             the meter cards below it, so putting it beside the thing it acts
+             on avoids showing a dead control on the Data/Charts/Summary tabs. -->
+        <div class="rd-search rd-search-inline">
+          <span class="rd-search-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          </span>
+          <input type="search" id="rd-search-input" class="rd-search-input" placeholder="ค้นหามิเตอร์ — รหัส, ชื่อ, หรือโซน" autocomplete="off">
+        </div>
+        <div id="logging-day-note" style="display:none;font-family:var(--rd-font-mono);font-size:11px;color:var(--rd-ink-3);margin-bottom:10px"></div>
+        <div id="zone-areas"></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn-yellow btn-sm" id="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="entry-section">
+      <button class="back-btn" onclick="backToList()">← กลับ</button>
+      <div class="sub-banner">
+        <div class="sb-icon">🚰</div>
+        <div>
+          <span class="sb-label">กำลังบันทึก</span>
+          <div class="sb-name" id="banner-name">—</div>
+          <span class="sb-id" id="banner-id">—</span>
+        </div>
+      </div>
+
+      <div class="meter-card" id="meter-summary" style="display:none">
+        <div class="card-title">⚡ ค่ามิเตอร์ล่าสุด</div>
+        <div class="meter-row">
+          <div class="meter-box">
+            <div class="mb-label">ครั้งก่อน</div>
+            <div class="mb-val" style="color:var(--text-3)" id="prev-reading">—</div>
+            <div class="mb-unit">kWh สะสม</div>
+          </div>
+          <div class="arrow-box">→</div>
+          <div class="meter-box hi">
+            <div class="mb-label">ล่าสุด</div>
+            <div class="mb-val" style="color:var(--accent)" id="last-reading">—</div>
+            <div class="mb-unit">kWh สะสม</div>
+          </div>
+        </div>
+        <div class="chip-center">
+          <span class="chip chip-green">⚡ ใช้ไฟฟ้าล่าสุด: <span id="last-used">—</span> kWh</span>
+        </div>
+      </div>
+
+      <div class="warn-box" id="history-error-box" style="display:none">❌ โหลดประวัติมิเตอร์ไม่ได้ จึงยังบันทึกไม่ได้ (ระบบต้องมีค่าครั้งก่อนเพื่อตรวจสอบความถูกต้อง) <button class="btn btn-sm btn-yellow" style="margin-left:8px" onclick="retryLoadHistory()">🔄 ลองใหม่</button></div>
+      <div class="card">
+        <div class="card-title"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></i>บันทึกค่ามิเตอร์ใหม่</div>
+        <div class="f-row">
+          <label class="f-label" id="in-kwh-label">📟 ค่าที่อ่านได้ (kWh สะสม)</label>
+          <input class="f-input kwh-input" type="number" id="in-kwh" placeholder="0" step="1" inputmode="decimal" oninput="previewUsed()">
+        </div>
+        <div id="preview-box" style="display:none;margin-bottom:12px">
+          <div class="chip-center"><span class="chip chip-green" id="preview-chip">—</span></div>
+        </div>
+        <div class="f-2col">
+          <div class="f-row">
+            <label class="f-label">📅 วันที่</label>
+            <input class="f-input" type="date" id="in-date">
+          </div>
+          <div class="f-row">
+            <label class="f-label">🕐 เวลา</label>
+            <input class="f-input" type="time" id="in-time">
+          </div>
+        </div>
+        <div class="f-row">
+          <label class="f-label">👤 ผู้บันทึก</label>
+          <input class="f-input" type="text" id="in-user" placeholder="ชื่อ-นามสกุล" autocomplete="name">
+        </div>
+        <div class="f-row">
+          <label class="f-label">📌 หมายเหตุ</label>
+          <input class="f-input" type="text" id="in-note" placeholder="—">
+        </div>
+        <button class="btn btn-save btn-full" id="save-btn" onclick="saveRecord()">✅ บันทึกข้อมูล</button>
+        <button class="btn btn-full" id="unable-btn" onclick="markUnableToRecord()"
+          style="margin-top:8px;background:var(--orange-dim);border:1px solid rgba(251,146,60,.4);color:var(--orange)">
+          ⚠️ ไม่สามารถบันทึกค่าได้วันนี้
+        </button>
+      </div>
+
+      <div class="card" id="recent-card" style="display:none">
+        <div class="card-title">🕒 5 รายการล่าสุด</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>วันที่</th><th>เวลา</th><th>มิเตอร์</th><th>ใช้ไป</th><th>ผู้บันทึก</th><th></th></tr></thead>
+            <tbody id="recent-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-data">
+    <div class="card">
+      <div class="card-title">🔍 กรองข้อมูล <span id="filter-badge" class="filter-badge" style="display:none">● Active</span></div>
+      <div class="f-2col">
+        <div class="f-row">
+          <label class="f-label">Meter</label>
+          <select class="f-input" id="fl-sub"><option value="">ทั้งหมด</option></select>
+        </div>
+        <div class="f-row">
+          <label class="f-label">ผู้บันทึก</label>
+          <input class="f-input" id="fl-user" placeholder="ค้นหา...">
+        </div>
+        <div class="f-row">
+          <label class="f-label">จากวันที่</label>
+          <input class="f-input" type="date" id="fl-from">
+        </div>
+        <div class="f-row">
+          <label class="f-label">ถึงวันที่</label>
+          <input class="f-input" type="date" id="fl-to">
+        </div>
+      </div>
+      <div class="f-row" style="margin-top:6px">
+        <label class="f-label">เรียงตาม</label>
+        <select class="f-input" id="fl-sort" onchange="applyFilter()">
+          <option value="newest" selected>ล่าสุดที่กรอก</option>
+          <option value="date-desc">วันที่ใหม่→เก่า</option>
+          <option value="date-asc">วันที่เก่า→ใหม่</option>
+          <option value="sub-asc">Meter ID A→Z</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-sm" onclick="applyFilter()">🔍 กรอง</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearFilter()">✖ ล้าง</button>
+        <button class="btn btn-yellow btn-sm" onclick="exportExcel()">📥 Excel</button>
+        <button class="btn btn-yellow btn-sm" onclick="loadFromServer()">🔄 Refresh</button>
+        <button class="btn btn-ghost btn-sm" id="load-all-btn" onclick="loadAllAdminRecords()">📚 โหลดข้อมูลทั้งหมด</button>
+      </div>
+      <div class="info-box" id="record-window-notice" style="display:none;margin-top:10px;margin-bottom:0"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 รายการทั้งหมด <span id="data-count" style="font-size:10px;color:var(--text-3);font-weight:400;margin-left:4px"></span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>รหัส</th><th>วันที่</th><th>เวลา</th><th>มิเตอร์</th><th>ใช้ไป</th><th class="desktop-only">ผู้บันทึก</th><th class="desktop-only">หมายเหตุ</th><th></th></tr></thead>
+          <tbody id="main-body"></tbody>
+        </table>
+        <div class="empty" id="main-empty" style="display:none"><i>📭</i>ยังไม่มีข้อมูล</div>
+      </div>
+      <div class="pagination-bar" style="display:flex; justify-content:space-between; align-items:center; padding-top:14px; margin-top:10px; border-top:1px solid rgba(255,255,255,0.05); flex-wrap:wrap; gap:12px; font-size:13px;">
+        <div style="color:var(--text-3); display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+          <span>แสดงข้อมูล</span>
+          <span id="rowStart" style="font-weight:700; color:#00c8f0;">0</span>
+          <span>ถึง</span>
+          <span id="rowEnd" style="font-weight:700; color:#00c8f0;">0</span>
+          <span>จากทั้งหมด</span>
+          <span id="totalRows" style="font-weight:700;">0</span>
+          <span>รายการ</span>
+          <span style="color:rgba(255,255,255,0.2); margin:0 4px;">|</span>
+          <span>แถวต่อหน้า:</span>
+          <select id="pageSize" onchange="onPageSizeChange()" style="background:#182640; color:#d8eaff; border:1px solid #1a2e48; padding:4px 8px; border-radius:6px; outline:none; font-family:inherit; cursor:pointer;">
+            <option value="10">10</option>
+            <option value="15" selected>15</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <div id="pageNav" style="display:flex; gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-chart">
+    <div class="card">
+      <div class="card-title"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 4-6"/></svg></i> การใช้ไฟฟ้ารายวัน (kWh)</div>
+      <div class="f-row">
+        <label class="f-label">เลือก Meter</label>
+        <select class="f-input" id="chart-sub" onchange="renderSubChart()"><option value="">เลือก Sub...</option></select>
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">ช่วงเร็ว:</span>
+        <button class="ctrl-btn yellow" onclick="setSubQuick('7d')">7 วัน</button>
+        <button class="ctrl-btn yellow" onclick="setSubQuick('30d')">30 วัน</button>
+        <button class="ctrl-btn yellow" onclick="setSubQuick('thisM')">เดือนนี้</button>
+        <button class="ctrl-btn yellow" onclick="setSubQuick('lastM')">เดือนก่อน</button>
+        <button class="ctrl-btn yellow" onclick="setSubQuick('3m')">3 เดือน</button>
+        <button class="ctrl-btn yellow" onclick="setSubQuick('all')">ทั้งหมด</button>
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">จาก:</span>
+        <input class="ctrl-date" type="date" id="sub-from" onchange="renderSubChart()">
+        <span class="chart-ctrl-label">ถึง:</span>
+        <input class="ctrl-date" type="date" id="sub-to" onchange="renderSubChart()">
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">มุมมอง:</span>
+        <button class="ctrl-btn green" id="sub-p-day" onclick="setSubPeriod('day')">รายวัน</button>
+        <button class="ctrl-btn" id="sub-p-month" onclick="setSubPeriod('month')">รายเดือน</button>
+        <button class="ctrl-btn" id="sub-p-year" onclick="setSubPeriod('year')">รายปี</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn on" id="sub-avg" onclick="toggleSubOpt('avg')">เส้นเฉลี่ย</button>
+        <button class="ctrl-btn on" id="sub-hol" onclick="toggleSubOpt('hol')">แยกสีวันหยุด</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn green" id="sub-t-bar" onclick="setSubType('bar')">แท่ง</button>
+        <button class="ctrl-btn" id="sub-t-line" onclick="setSubType('line')">เส้น</button>
+      </div>
+      <div class="chart-container" id="sub-chart-el"></div>
+      <div id="sub-chart-summary" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">เทียบการใช้ไฟฟ้ากลุ่มหลัก</div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">มุมมอง:</span>
+        <button class="ctrl-btn green" id="g9-p-day" onclick="setG9Period('day')">รายวัน</button>
+        <button class="ctrl-btn" id="g9-p-month" onclick="setG9Period('month')">รายเดือน</button>
+        <button class="ctrl-btn" id="g9-p-year" onclick="setG9Period('year')">รายปี</button>
+      </div>
+      <div class="chart-ctrl">
+        <button class="ctrl-nav" onclick="navG9(-1)">◀</button>
+        <input class="ctrl-date" type="date" id="g9-date" onchange="renderG9Chart()">
+        <input class="ctrl-date" type="month" id="g9-month" onchange="renderG9Chart()" style="display:none">
+        <select class="ctrl-date" id="g9-year" onchange="renderG9Chart()" style="display:none"></select>
+        <button class="ctrl-nav" onclick="navG9(1)">▶</button>
+        <span style="font-size:11px;color:var(--accent);font-weight:700" id="g9-label"></span>
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">เรียง:</span>
+        <button class="ctrl-btn green" id="g9-s-default" onclick="setG9Sort('default')">ตามกลุ่ม</button>
+        <button class="ctrl-btn" id="g9-s-desc" onclick="setG9Sort('desc')">มาก→น้อย</button>
+        <button class="ctrl-btn" id="g9-s-asc" onclick="setG9Sort('asc')">น้อย→มาก</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn" id="g9-pct" onclick="toggleG9Pct()">แสดง %</button>
+      </div>
+      <div class="chart-container" id="g9-chart-el"></div>
+      <div id="g9-chart-summary" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">กราฟเทียบการใช้ไฟฟ้าแต่ละกลุ่ม</div>
+      <div class="f-row">
+        <label class="f-label">เลือกกลุ่ม</label>
+        <select class="f-input" id="cmp-group" onchange="renderCmpChart()"></select>
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">ช่วงเร็ว:</span>
+        <button class="ctrl-btn yellow" onclick="setCmpQuick('7d')">7 วัน</button>
+        <button class="ctrl-btn yellow" onclick="setCmpQuick('30d')">30 วัน</button>
+        <button class="ctrl-btn yellow" onclick="setCmpQuick('thisM')">เดือนนี้</button>
+        <button class="ctrl-btn yellow" onclick="setCmpQuick('lastM')">เดือนก่อน</button>
+        <button class="ctrl-btn yellow" onclick="setCmpQuick('3m')">3 เดือน</button>
+        <button class="ctrl-btn yellow" onclick="setCmpQuick('all')">ทั้งหมด</button>
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">จาก:</span>
+        <input class="ctrl-date" type="date" id="cmp-from" onchange="renderCmpChart()">
+        <span class="chart-ctrl-label">ถึง:</span>
+        <input class="ctrl-date" type="date" id="cmp-to" onchange="renderCmpChart()">
+      </div>
+      <div class="chart-ctrl">
+        <span class="chart-ctrl-label">มุมมอง:</span>
+        <button class="ctrl-btn green" id="cmp-p-day" onclick="setCmpPeriod('day')">รายวัน</button>
+        <button class="ctrl-btn" id="cmp-p-month" onclick="setCmpPeriod('month')">รายเดือน</button>
+        <button class="ctrl-btn" id="cmp-p-year" onclick="setCmpPeriod('year')">รายปี</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn on" id="cmp-avg" onclick="toggleCmpOpt('avg')">เส้นเฉลี่ย</button>
+        <div class="ctrl-sep"></div>
+        <button class="ctrl-btn green" id="cmp-t-bar" onclick="setCmpType('bar')">แท่ง</button>
+        <button class="ctrl-btn" id="cmp-t-line" onclick="setCmpType('line')">เส้น</button>
+      </div>
+      <div class="chart-container" id="cmp-chart-el"></div>
+      <div id="cmp-chart-summary" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+<div class="panel" id="panel-summary">
+
+  <!-- ── ตารางรายงานรายวันทั้งเดือน ── -->
+  <div class="card">
+    <div class="card-title">📋 รายงานการใช้ไฟฟ้ารายเดือน</div>
+    <div class="f-2col">
+      <div class="f-row">
+        <label class="f-label">เลือกเดือน</label>
+        <select class="f-input" id="rep-month" onchange="loadReport()"></select>
+      </div>
+      <div class="f-row" style="display:flex;align-items:flex-end">
+        <button class="btn btn-yellow btn-full" onclick="exportReportExcel()">📥 Export Excel</button>
+      </div>
+    </div>
+    <div class="f-row" style="display:flex;align-items:flex-end">
+      <button class="btn btn-primary btn-full" onclick="exportFullTemplateExcel()">📊 Export Excel (รูปแบบเต็ม — Data + รายมิเตอร์ทุก Zone)</button>
+    </div>
+    <div id="report-area"><div class="section-empty">📋 เลือกเดือนเพื่อดูรายงาน</div></div>
+  </div>
+
+  <!-- ── รายละเอียดรายมิเตอร์ แยกตาม Zone ── -->
+  <div class="card">
+    <div class="card-title">🔎 รายละเอียดรายมิเตอร์แยกตาม Zone</div>
+    <div class="f-2col">
+      <div class="f-row">
+        <label class="f-label">เลือกเดือน</label>
+        <select class="f-input" id="zone-rep-month" onchange="loadZoneReport()"></select>
+      </div>
+      <div class="f-row">
+        <label class="f-label">เลือก Zone</label>
+        <select class="f-input" id="zone-rep-select" onchange="renderZoneReport()"></select>
+      </div>
+    </div>
+    <div class="f-row" style="display:flex;align-items:flex-end;margin-bottom:11px">
+      <button class="btn btn-yellow btn-full" onclick="exportZoneReportExcel()">📥 Export Excel</button>
+    </div>
+    <div id="zone-report-area"><div class="section-empty">📋 เลือกเดือนแล้วเลือก Zone เพื่อดูรายละเอียด</div></div>
+  </div>
+
+</div>
+  
+  <!-- ══ COST TAB (Electric only) ══
+       Kept out of Summary on purpose: Summary reports consumption in units,
+       this reports money. It also owns the tariff inputs, which belong to the
+       two MEA supply points and have no analogue in the Water app. -->
+  <div class="panel" id="panel-cost">
+    <div class="card">
+      <div class="card-title">💰 ประมาณค่าไฟฟ้า</div>
+      <div class="info-box">
+        ประมาณการจากค่าที่จดไว้ — <strong>ไม่ใช่บิลจริง</strong> ใช้ดูแนวโน้มก่อนบิลออก<br>
+        <small style="color:var(--rd-ink-3)">Demand ใช้ค่าสูงสุดของเดือน · หน่วยใช้ผลต่างต้น-ปลายเดือน</small>
+      </div>
+      <div class="f-2col">
+        <div class="f-row">
+          <label class="f-label">📅 เดือน</label>
+          <select class="f-input" id="cost-month" onchange="renderTariffForms(); loadCostData();"></select>
+        </div>
+        <div class="f-row" style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary btn-full" onclick="loadCostData()" style="min-height:44px">🔄 คำนวณ</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="cost-body"><div class="section-empty">เลือกเดือนแล้วกดคำนวณ</div></div>
+
+    <div class="card">
+      <div class="card-title">⚙️ อัตราค่าไฟ</div>
+      <div class="info-box" style="margin-bottom:12px">
+        กรอกตามใบแจ้งหนี้ล่าสุด — Ft เปลี่ยนทุกงวด ควรอัปเดตก่อนคำนวณ<br>
+        <small style="color:var(--rd-ink-3)">เก็บในเครื่องนี้เท่านั้น ไม่ได้ส่งขึ้น Sheet</small>
+      </div>
+      <div id="tariff-forms"></div>
+      <div class="btn-row">
+        <button class="btn btn-save btn-sm" onclick="saveTariffs()">💾 บันทึกอัตรา</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadCostData()">🔄 คำนวณใหม่</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-qr">
+    <div class="card">
+      <div class="card-title"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg></i> QR Code ทุก Meter</div>
+      <div class="info-box">
+        <strong>Base URL:</strong> <span style="font-family:var(--font-mono);font-size:9px;color:var(--accent)" id="qr-url-preview">—</span><br>
+        <small style="color:var(--text-3)">สแกน QR เปิด Meter ได้ทันที</small>
+      </div>
+      <div class="f-row">
+         <label class="f-label">กรอง Zone</label>
+         <select class="f-input" id="qr-zone-filter" onchange="renderQR()">
+            <option value="">ทั้งหมด</option>
+         </select>
+      </div>
+      <div class="qr-grid" id="qr-grid"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-settings">
+    <div class="card">
+      <div class="card-title">☁️ Google Sheets API</div>
+      <div class="info-box"><strong>API URL ถูก lock</strong><br>ทุกอุปกรณ์ sync อัตโนมัติ</div>
+      <div id="api-status" style="display:none;margin-bottom:10px"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-sm" onclick="testConn()">🔌 ทดสอบ</button>
+        <button class="btn btn-yellow btn-sm" onclick="loadFromServer()">🔄 โหลด</button>
+      </div>
+    </div>
+
+    <div class="card" style="border-color:rgba(248,113,113,.3)">
+      <div class="card-title" style="color:var(--orange)">⚠️ Backup</div>
+      <div class="btn-row">
+        <button class="btn btn-yellow btn-sm" onclick="exportExcel()">📥 Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportJSON()">💾 JSON</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-inp').click()">📂 Import</button>
+        <button class="btn btn-danger btn-sm" onclick="clearCache()">🗑 ล้าง Cache</button>
+      </div>
+      <input type="file" id="import-inp" accept=".json" style="display:none" onchange="doImport(event)">
+    </div>
+
+    <div class="card">
+      <div class="card-title">➕ เพิ่ม Meter</div>
+      <div class="f-3col">
+        <div class="f-row"><label class="f-label">Meter ID</label><input class="f-input" id="new-id" placeholder="WM-59"></div>
+        <div class="f-row"><label class="f-label">ชื่อ</label><input class="f-input" id="new-name" placeholder="เช่น ประปาเข้า...(คำอธิบาย Meter)"></div>
+        <div class="f-row">
+          <label class="f-label">ทศนิยม</label>
+          <select class="f-input" id="new-decimal">
+            <option value="0" selected>0 (จำนวนเต็ม)</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </div>
+      </div>
+      <div class="f-row"><label class="f-label">Zone</label><input class="f-input" id="new-zone" placeholder="Custom"></div>
+      <button class="btn btn-primary btn-full" onclick="addSub()">➕ เพิ่ม Meter</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 รายการ Meter (<span id="sub-count">0</span>)</div>
+      <div class="info-box" style="margin-bottom:8px">กด <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></i> เพื่อแก้ไขชื่อ, Zone, ทศนิยม และตัวคูณ</div>
+      <div id="sub-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📅 ปฏิทินวันทำงาน</div>
+      <div class="info-box" style="margin-bottom:8px">
+        ปกติ จ–ศ = วันทำงาน, ส–อา = วันหยุด<br>
+        เพิ่มเฉพาะวันที่<strong>ต่างจากปกติ</strong> เช่น เสาร์ทำงาน หรือวันหยุดพิเศษ
+      </div>
+      <div class="f-3col">
+        <div class="f-row"><label class="f-label">วันที่</label><input class="f-input" type="date" id="cal-date"></div>
+        <div class="f-row">
+          <label class="f-label">ประเภท</label>
+          <select class="f-input" id="cal-type">
+            <option value="work">วันทำงาน</option>
+            <option value="holiday">วันหยุด</option>
+          </select>
+        </div>
+        <div class="f-row"><label class="f-label">หมายเหตุ</label><input class="f-input" id="cal-note" placeholder="เช่น สงกรานต์"></div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="addCalendarDay()">➕ เพิ่มวันพิเศษ</button>
+      <div id="cal-list" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="edit-modal" onclick="closeEditIf(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></i> แก้ไขรายการ<button class="modal-close" onclick="closeEdit()">✕</button></div>
+    <div class="warn-box">⚠️ การแก้ไขค่ามิเตอร์จะกระทบค่า "ใช้ไป" ของรายการถัดไป</div>
+    <div class="f-row"><label class="f-label">Meter</label><select class="f-input" id="edit-sub"></select></div>
+    <div class="f-row"><label class="f-label">ค่ามิเตอร์ (kWh สะสม)</label><input class="f-input kwh-input" type="number" id="edit-kwh" step="1" inputmode="decimal"></div>
+    <div class="f-2col">
+      <div class="f-row"><label class="f-label">วันที่</label><input class="f-input" type="date" id="edit-date"></div>
+      <div class="f-row"><label class="f-label">เวลา</label><input class="f-input" type="time" id="edit-time"></div>
+    </div>
+    <div class="f-row"><label class="f-label">ผู้บันทึก</label><input class="f-input" type="text" id="edit-user"></div>
+    <div class="f-row"><label class="f-label">หมายเหตุ</label><input class="f-input" type="text" id="edit-note"></div>
+    <div class="btn-row">
+      <button class="btn btn-save btn-full" onclick="saveEdit()">✅ บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeEdit()" style="padding:11px 20px">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="edit-sub-modal" onclick="closeEditSubIf(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></i> แก้ไข Meter<button class="modal-close" onclick="closeEditSub()">✕</button></div>
+    <div class="f-row">
+      <label class="f-label">Meter ID (ไม่สามารถเปลี่ยนได้)</label>
+      <input class="f-input" id="esub-id" disabled>
+    </div>
+    <div class="f-row">
+      <label class="f-label">ชื่อ Meter</label>
+      <input class="f-input" id="esub-name" placeholder="เช่น ประปาเข้าห้องน้ำ Body">
+    </div>
+    <div class="f-row">
+      <label class="f-label">Zone / พื้นที่</label>
+      <input class="f-input" id="esub-zone" placeholder="เช่น BODY">
+    </div>
+    <div class="f-row">
+      <label class="f-label">จำนวนทศนิยม (0 = จำนวนเต็ม)</label>
+      <select class="f-input" id="esub-decimal">
+        <option value="0">0 — จำนวนเต็ม (12345)</option>
+        <option value="1">1 — ทศนิยม 1 ตำแหน่ง</option>
+        <option value="2">2 — ทศนิยม 2 ตำแหน่ง</option>
+        <option value="3">3 — ทศนิยม 3 ตำแหน่ง</option>
+        <option value="4">4 — ทศนิยม 4 ตำแหน่ง</option>
+      </select>
+    </div>
+    <div class="f-row">
+      <label class="f-label">ตัวคูณมิเตอร์ (Multiplier)</label>
+      <input class="f-input" type="number" id="esub-multiplier" step="any" placeholder="เช่น 1, 10, 600, 800" inputmode="decimal">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-save btn-full" onclick="saveEditSub()">✅ บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeEditSub()" style="padding:11px 20px">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>{{SCRIPT}}</script>
+</body>
+</html>

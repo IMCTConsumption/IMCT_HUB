@@ -1,0 +1,32 @@
+{
+  "APP_ID": "water-gw",
+  "APP_NS": "watergw",
+  "APP_VERSION": "1.0.0",
+  "SITE_NAME": "Water Meter",
+  "SITE_CODE": "GW",
+  "UNIT": "m³",
+  "UNIT_WORD": "ใช้น้ำ",
+  "UNIT_ICON": "💧",
+  "QR_SAMPLE": "WM-XX",
+  "API_URL": "PASTE_GW_APPS_SCRIPT_EXEC_URL_HERE",
+  "QR_BASE_URL": "https://imctconsumption.github.io/Water-Meter-GW/",
+  "TAB_ORDER": [
+    "entry",
+    "data",
+    "chart",
+    "summary",
+    "qr",
+    "settings"
+  ],
+  "modules": [
+    "summary-water"
+  ],
+  "shell": "water",
+  "backend": {
+    "seed": "gw-water",
+    "modules": [],
+    "UNIT_BACKEND": "m3",
+    "ADMIN_SEED_PW": "CHANGE_ME_IN_APPS_SCRIPT",
+    "RECORDER_SEED_PW": "CHANGE_ME_IN_APPS_SCRIPT"
+  }
+}
