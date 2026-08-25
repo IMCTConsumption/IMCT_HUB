@@ -1,0 +1,87 @@
+name: Build apps
+
+# Runs on GitHub's machines — nothing to install locally.
+#
+# This only BUILDS. It does not push anywhere: deploying is you downloading the
+# result and uploading it to the app's repo. That keeps the setup to two steps
+# (no access token to create, store, or leak) and it keeps each app's go-live a
+# deliberate act rather than a side effect of editing a shared file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which app to build'
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - elec-sr
+          - water-sr
+          - elec-gw
+          - water-gw
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build
+        run: |
+          if [ "${{ inputs.app }}" = "all" ]; then
+            node tools/build.js
+          else
+            node tools/build.js ${{ inputs.app }}
+          fi
+
+      - name: Verify against the originals
+        # Only meaningful when the Samrong apps were built — they are the ones
+        # with hand-maintained originals to compare against. Gateway comes off
+        # the same source, so a clean SR result covers it.
+        if: inputs.app == 'all' || inputs.app == 'elec-sr' || inputs.app == 'water-sr'
+        continue-on-error: true
+        run: python3 tools/verify.py
+
+      - name: Summary
+        run: |
+          {
+            echo "## Build เสร็จแล้ว"
+            echo ""
+            echo "โหลดไฟล์จาก **Artifacts** ด้านล่างหน้านี้"
+            echo ""
+            echo "| ไฟล์ | เอาไปไว้ไหน |"
+            echo "|---|---|"
+            echo "| \`index.html\` | upload ทับใน repo ของแอปนั้น |"
+            echo "| \`Code.gs\` | paste ทับใน Apps Script → Deploy → New version |"
+            echo ""
+            echo "> อย่ากด **New deployment** ใน Apps Script — URL จะเปลี่ยนและ QR ที่พิมพ์ไปแล้วจะใช้ไม่ได้"
+            echo ""
+            echo "### ที่ build ได้"
+            echo ""
+            for d in dist/*/; do
+              app=$(basename "$d")
+              api=$(python3 -c "import json;print(json.load(open('config/$app.json'))['API_URL'])")
+              case "$api" in
+                PASTE_*) note=" — ⚠️ ยังไม่ได้ตั้ง API_URL ใช้งานไม่ได้" ;;
+                *) note="" ;;
+              esac
+              echo "- \`$app\` · index.html $(du -h "$d/index.html" | cut -f1) · Code.gs $(du -h "$d/Code.gs" | cut -f1)$note"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: imct-build
+          path: dist/
+          retention-days: 30
